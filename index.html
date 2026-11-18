@@ -1,0 +1,698 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Stepwise</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: code and controls on the left, live program state (what's about to happen, variables, call stack, output) on the right. */
+:root {
+  --bg: #edf0f6;
+  --panel: #ffffff;
+  --panel-2: #f5f7fb;
+  --line: #d8deea;
+  --fg: #172033;
+  --muted: #5a6882;
+  --accent: #2955d9;
+  --accent-ink: #ffffff;
+  --code-bg: #fbfcfe;
+  --cur: #fff0b0;
+  --cur-bar: #d99a00;
+  --err: #c4243c;
+  --err-bg: #fde6ea;
+  --chg: #e1f4e8;
+  --chg-ink: #14673f;
+  --bp: #d92d4b;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e131b;
+    --panel: #161c26;
+    --panel-2: #1b2230;
+    --line: #28313f;
+    --fg: #e1e7f2;
+    --muted: #8b98b0;
+    --accent: #84a5ff;
+    --accent-ink: #0c1530;
+    --code-bg: #121822;
+    --cur: #3b3316;
+    --cur-bar: #f0b429;
+    --err: #ff7b8d;
+    --err-bg: #3a1f27;
+    --chg: #1c3a2a;
+    --chg-ink: #7fdcab;
+    --bp: #ff5d7b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e131b;
+  --panel: #161c26;
+  --panel-2: #1b2230;
+  --line: #28313f;
+  --fg: #e1e7f2;
+  --muted: #8b98b0;
+  --accent: #84a5ff;
+  --accent-ink: #0c1530;
+  --code-bg: #121822;
+  --cur: #3b3316;
+  --cur-bar: #f0b429;
+  --err: #ff7b8d;
+  --err-bg: #3a1f27;
+  --chg: #1c3a2a;
+  --chg-ink: #7fdcab;
+  --bp: #ff5d7b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 var(--sans);
+  padding-block: 16px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.app { max-width: 1300px; margin: 0 auto; display: grid; gap: 14px; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand svg { flex: none; color: var(--accent); }
+.brand h1 { margin: 0; font: 600 20px/1.2 var(--sans); letter-spacing: -0.01em; }
+.brand p { margin: 0; color: var(--muted); font-size: 13px; }
+.top-right { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+select, .btn {
+  font: 500 13px var(--sans);
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 11px;
+}
+select { padding-right: 8px; max-width: 100%; }
+.btn { cursor: pointer; background: var(--panel-2); }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: 0.42; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; min-width: 84px; }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.stop { background: var(--err-bg); color: var(--err); border-color: var(--err); }
+:is(.btn, select, textarea, input, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+.pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill[data-kind="ready"] .pdot { background: #22a35f; }
+.pill[data-kind="loading"] .pdot, .pill[data-kind="busy"] .pdot { background: var(--cur-bar); animation: pulse 1s ease-in-out infinite; }
+.pill[data-kind="error"] .pdot { background: var(--err); }
+@keyframes pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .pdot { animation: none !important; } }
+
+.notice { margin: 0; padding: 10px 14px; border-radius: 10px; background: var(--err-bg); color: var(--err); border: 1px solid var(--err); font-size: 13px; overflow-wrap: anywhere; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.col { display: grid; gap: 14px; min-width: 0; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+
+.controls { padding: 10px; display: grid; gap: 10px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ctl .sep { width: 1px; align-self: stretch; background: var(--line); margin-inline: 2px; }
+.scrub { display: flex; align-items: center; gap: 12px; }
+.scrub input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.keys { margin: 0; font-size: 12px; color: var(--muted); }
+kbd { font: 500 11px var(--mono); padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--panel-2); color: var(--fg); }
+
+.editor { display: grid; grid-template-columns: auto minmax(0, 1fr); height: clamp(300px, 56vh, 560px); overflow: hidden; background: var(--code-bg); font: 13px/21px var(--mono); }
+.gutter { overflow: hidden; width: 56px; background: var(--panel-2); border-right: 1px solid var(--line); }
+.ln-inner { padding: 10px 0 70px; }
+.ln { height: 21px; display: flex; align-items: center; justify-content: space-between; padding-inline: 9px 8px; color: var(--muted); cursor: pointer; user-select: none; font-variant-numeric: tabular-nums; }
+.ln .dot { width: 9px; height: 9px; border-radius: 50%; background: transparent; }
+.ln:hover .dot { background: color-mix(in srgb, var(--bp) 40%, transparent); }
+.ln.bp-on .dot { background: var(--bp); }
+.ln.cur { color: var(--fg); font-weight: 700; }
+.codewrap { position: relative; min-width: 0; }
+.hl { position: absolute; left: 0; right: 0; top: 0; height: 21px; background: var(--cur); box-shadow: inset 3px 0 0 var(--cur-bar); pointer-events: none; }
+.hl.err { background: var(--err-bg); box-shadow: inset 3px 0 0 var(--err); }
+#code { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; outline: 0; resize: none; background: transparent; color: var(--fg); font: inherit; line-height: 21px; padding: 10px 12px 24px; white-space: pre; overflow: auto; tab-size: 4; caret-color: var(--accent); }
+
+details.stdin { padding: 0; }
+details.stdin summary { cursor: pointer; padding: 9px 12px; font-size: 13px; color: var(--muted); }
+details.stdin[open] summary { border-bottom: 1px solid var(--line); }
+#stdin { display: block; width: 100%; min-height: 64px; border: 0; background: transparent; color: var(--fg); font: 13px/1.5 var(--mono); padding: 10px 12px; resize: vertical; outline-offset: -2px; border-radius: 0 0 10px 10px; }
+
+.now { padding: 12px; display: grid; gap: 8px; }
+.now-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.chip { font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.where { font: 600 13px var(--mono); overflow-wrap: anywhere; }
+.srcline { margin: 0; padding: 7px 10px; background: var(--code-bg); border: 1px solid var(--line); border-left: 3px solid var(--cur-bar); border-radius: 6px; font: 13px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; min-height: 34px; }
+.srcline.err { border-left-color: var(--err); }
+.what { margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.what.err { color: var(--err); }
+
+.panel h2 { margin: 0; padding: 9px 12px; font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+.panel h2 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.scroll { max-height: 270px; overflow: auto; }
+.empty { margin: 0; padding: 12px; color: var(--muted); font-size: 13px; }
+
+.var { display: grid; grid-template-columns: minmax(60px, 0.34fr) minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+.var:last-child { border-bottom: 0; }
+.vn { font: 700 12.5px var(--mono); overflow-wrap: anywhere; }
+.vv { font: 12.5px var(--mono); overflow-wrap: anywhere; }
+.vm { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.var.chg, .var.new { background: var(--chg); }
+.tag { font: 600 10px var(--sans); text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 4px; background: var(--panel); color: var(--chg-ink); border: 1px solid var(--chg-ink); }
+@media (max-width: 520px) { .var { grid-template-columns: minmax(50px, 0.4fr) minmax(0, 1fr); } .vm { grid-column: 1 / -1; } }
+
+.stack { list-style: none; margin: 0; padding: 0; }
+.stack li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--line); font: 12.5px var(--mono); }
+.stack li:last-child { border-bottom: 0; }
+.stack li.top { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent); font-weight: 700; }
+.stack .ln-no { color: var(--muted); font-weight: 400; white-space: nowrap; }
+
+pre.out { margin: 0; padding: 10px 12px; font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; min-height: 54px; }
+pre.out .errtext { display: block; margin-top: 8px; padding: 8px 10px; border-radius: 6px; background: var(--err-bg); color: var(--err); }
+pre.out .note { display: block; margin-top: 8px; color: var(--muted); font-family: var(--sans); font-size: 12.5px; }
+.dim { color: var(--muted); }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" fill="none" aria-hidden="true"><path d="M4 24h7v-6h7v-6h8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="26" cy="12" r="2.6" fill="currentColor"/></svg>
+      <div>
+        <h1>Stepwise</h1>
+        <p>Run Python one line at a time and watch every variable change.</p>
+      </div>
+    </div>
+    <div class="top-right">
+      <label for="examples" class="dim" style="font-size:13px">Example</label>
+      <select id="examples" aria-label="Choose an example program"></select>
+      <span class="pill" id="pill" data-kind="loading" role="status" aria-live="polite"><i class="pdot"></i><span id="pillText">Loading Python</span></span>
+    </div>
+  </header>
+
+  <p class="notice" id="notice" role="alert" hidden></p>
+
+  <main class="layout">
+    <div class="col">
+      <section class="card controls" aria-label="Debugger controls">
+        <div class="ctl" role="toolbar" aria-label="Step controls">
+          <button class="btn primary" id="runBtn" type="button" disabled>Trace</button>
+          <span class="sep" aria-hidden="true"></span>
+          <button class="btn" id="restartBtn" type="button" title="Back to the first step" disabled>Restart</button>
+          <button class="btn" id="backBtn" type="button" title="One step back (Left arrow)" disabled>Back</button>
+          <button class="btn" id="stepBtn" type="button" title="Run the next line, entering any function it calls (Right arrow)" disabled>Step</button>
+          <button class="btn" id="overBtn" type="button" title="Run the next line without entering calls (Down arrow)" disabled>Over</button>
+          <button class="btn" id="outBtn" type="button" title="Run until this function returns (Up arrow)" disabled>Out</button>
+          <button class="btn" id="contBtn" type="button" title="Run to the next breakpoint, or the end (C)" disabled>Continue</button>
+        </div>
+        <div class="scrub">
+          <input type="range" id="scrub" min="0" max="0" value="0" step="1" aria-label="Position in the run" disabled>
+          <span class="count" id="count">No run yet</span>
+        </div>
+        <p class="keys">Click a line number to set a breakpoint. Keys: <kbd>&rarr;</kbd> step, <kbd>&larr;</kbd> back, <kbd>&darr;</kbd> over, <kbd>&uarr;</kbd> out, <kbd>C</kbd> continue. In the editor, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> traces.</p>
+      </section>
+
+      <section class="card editor" aria-label="Python code">
+        <div class="gutter" id="gutter" aria-hidden="true"></div>
+        <div class="codewrap">
+          <div class="hl" id="hl" hidden></div>
+          <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Python source code"></textarea>
+        </div>
+      </section>
+
+      <details class="card stdin" id="stdinBox">
+        <summary>Program input (one line per input() call)</summary>
+        <textarea id="stdin" spellcheck="false" aria-label="Text returned by input()" placeholder="Type the lines your program will read with input()"></textarea>
+      </details>
+    </div>
+
+    <div class="col">
+      <section class="card now" aria-label="Current step">
+        <div class="now-top"><span class="chip" id="chip">Waiting</span><span class="where" id="where"></span></div>
+        <pre class="srcline" id="src"></pre>
+        <p class="what" id="what">Press Trace to run your code and record every step.</p>
+      </section>
+
+      <section class="card panel" aria-label="Variables">
+        <h2>Variables <span id="scopeName"></span></h2>
+        <div class="scroll" id="vars"></div>
+      </section>
+
+      <section class="card panel" id="globalsCard" aria-label="Global variables" hidden>
+        <h2>Globals</h2>
+        <div class="scroll" id="globals"></div>
+      </section>
+
+      <section class="card panel" aria-label="Call stack">
+        <h2>Call stack</h2>
+        <ul class="stack" id="stack"></ul>
+      </section>
+
+      <section class="card panel" aria-label="Output">
+        <h2>Output</h2>
+        <pre class="out" id="out"></pre>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var LH = 21, PAD = 10, MAX_STEPS = 5000, TIMEOUT_MS = 10000;
+
+  var EXAMPLES = [
+    { name: 'Cart total (watch p change)', stdin: '', code:
+'def running_total(prices, discount):\n    total = 0\n    for p in prices:\n        if p > 50:\n            p = p * (1 - discount)\n        total += p\n    return total\n\ncart = [20, 80, 45, 120]\nresult = running_total(cart, 0.1)\nprint("Total:", result)\n' },
+    { name: 'Bug hunt: IndexError', stdin: '', code:
+'def average(nums):\n    total = 0\n    for i in range(len(nums) + 1):\n        total += nums[i]\n    return total / len(nums)\n\nscores = [82, 90, 71]\nprint("Average:", average(scores))\n' },
+    { name: 'Recursion: factorial', stdin: '', code:
+'def factorial(n):\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)\n\nprint(factorial(4))\n' },
+    { name: 'Bubble sort', stdin: '', code:
+'def bubble_sort(items):\n    items = list(items)\n    for end in range(len(items) - 1, 0, -1):\n        for i in range(end):\n            if items[i] > items[i + 1]:\n                items[i], items[i + 1] = items[i + 1], items[i]\n    return items\n\nprint(bubble_sort([5, 2, 9, 1, 7]))\n' },
+    { name: 'Classes and objects', stdin: '', code:
+'class Account:\n    def __init__(self, owner, balance=0):\n        self.owner = owner\n        self.balance = balance\n\n    def deposit(self, amount):\n        self.balance += amount\n        return self.balance\n\nacct = Account("Maya", 100)\nacct.deposit(50)\nacct.deposit(25)\nprint(acct.owner, acct.balance)\n' },
+    { name: 'Reading input()', stdin: 'Ada\n3\n', code:
+'name = input("Name? ")\ncount = int(input("How many times? "))\nfor i in range(count):\n    print(i + 1, "Hello,", name)\n' }
+  ];
+
+  var ta = $('code'), gutter = $('gutter'), hl = $('hl'), stdinEl = $('stdin');
+  var runBtn = $('runBtn'), restartBtn = $('restartBtn'), backBtn = $('backBtn'), stepBtn = $('stepBtn'),
+      overBtn = $('overBtn'), outBtn = $('outBtn'), contBtn = $('contBtn'), scrub = $('scrub');
+  var worker = null, ready = false, running = false, runTimer = 0, firstReady = true;
+  var steps = [], fullOut = '', runErr = null, truncated = false, idx = -1, tracedLines = [];
+  var prevSame = [], gAt = [];
+  var bps = new Set();
+  var gutterCount = -1, curRow = null, curLine = 0, hlErr = false;
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  /* ---------- status ---------- */
+  function setStatus(kind, text) {
+    $('pill').setAttribute('data-kind', kind);
+    $('pillText').textContent = text;
+  }
+  function showNotice(msg) {
+    var n = $('notice');
+    if (msg) { n.textContent = msg; n.hidden = false; } else { n.hidden = true; }
+  }
+
+  /* ---------- worker ---------- */
+  function startWorker() {
+    ready = false;
+    setStatus('loading', 'Loading Python');
+    updateControls();
+    try {
+      worker = new Worker('worker.js');
+    } catch (e) {
+      fatal('This browser could not start the Python runtime: ' + e.message);
+      return;
+    }
+    worker.onmessage = function (ev) {
+      var m = ev.data;
+      if (m.type === 'status') {
+        setStatus('loading', m.message);
+        if (firstReady) setIdleText('Loading the Python runtime. This takes a few seconds the first time.');
+      } else if (m.type === 'ready') {
+        ready = true;
+        setStatus('ready', 'Python ready');
+        updateControls();
+        if (firstReady) { firstReady = false; runTrace(); }
+        else if (!steps.length) setIdleText('Press Trace to run your code and record every step.');
+      } else if (m.type === 'result') {
+        clearTimeout(runTimer);
+        running = false;
+        loadResult(m.data);
+      } else if (m.type === 'fatal') {
+        clearTimeout(runTimer);
+        running = false;
+        fatal(m.message);
+      }
+    };
+    worker.onerror = function (ev) {
+      clearTimeout(runTimer);
+      running = false;
+      fatal(ev && ev.message ? ev.message : 'The Python runtime stopped unexpectedly.');
+    };
+  }
+  function killWorker() {
+    if (worker) { worker.terminate(); worker = null; }
+    clearTimeout(runTimer);
+    running = false;
+  }
+  function fatal(msg) {
+    setStatus('error', 'Python unavailable');
+    showNotice('The Python runtime could not run: ' + msg);
+    ready = false;
+    updateControls();
+    setIdleText('The Python runtime did not start. Reload the page to try again.');
+  }
+  function stopRun(message) {
+    killWorker();
+    showNotice(message);
+    clearTrace();
+    startWorker();
+  }
+
+  /* ---------- running ---------- */
+  function runTrace() {
+    if (!ready || running) return;
+    showNotice('');
+    running = true;
+    tracedLines = ta.value.split('\n');
+    setStatus('busy', 'Tracing');
+    updateControls();
+    runTimer = setTimeout(function () {
+      stopRun('The program ran for more than 10 seconds and was stopped. Check for a loop that never ends.');
+    }, TIMEOUT_MS);
+    worker.postMessage({ type: 'run', code: ta.value, stdin: stdinEl.value, max: MAX_STEPS });
+  }
+
+  function loadResult(data) {
+    var r;
+    try { r = JSON.parse(data); } catch (e) { fatal('Could not read the trace: ' + e.message); return; }
+    steps = r.steps; fullOut = r.out; runErr = r.err; truncated = r.trunc;
+    var last = new Map();
+    prevSame = new Array(steps.length);
+    gAt = new Array(steps.length);
+    steps.forEach(function (s, i) {
+      prevSame[i] = last.has(s.fi) ? last.get(s.fi) : -1;
+      last.set(s.fi, i);
+      gAt[i] = s.g || s.v;
+    });
+    idx = steps.length ? 0 : -1;
+    setStatus('ready', runErr ? 'Finished with an error' : 'Traced ' + steps.length + ' steps');
+    render();
+  }
+
+  function clearTrace() {
+    steps = []; fullOut = ''; runErr = null; truncated = false; idx = -1; prevSame = []; gAt = [];
+    render();
+  }
+
+  /* ---------- navigation ---------- */
+  function go(i) {
+    if (!steps.length) return;
+    idx = Math.max(0, Math.min(steps.length - 1, i));
+    render();
+  }
+  function stepInto() { go(idx + 1); }
+  function stepBack() { go(idx - 1); }
+  function stepOver() {
+    var d = steps[idx].d, j = idx + 1;
+    while (j < steps.length - 1 && steps[j].d > d) j++;
+    go(j);
+  }
+  function stepOut() {
+    var d = steps[idx].d, j = idx + 1;
+    while (j < steps.length - 1 && steps[j].d >= d) j++;
+    go(j);
+  }
+  function cont() {
+    var j = idx + 1;
+    while (j < steps.length - 1 && !(steps[j].e === 'l' && bps.has(steps[j].l))) j++;
+    go(j);
+  }
+  function canNav() { return steps.length > 0 && !running; }
+
+  /* ---------- editor ---------- */
+  function buildGutter(force) {
+    var n = ta.value.split('\n').length;
+    if (!force && n === gutterCount) return;
+    gutterCount = n;
+    var h = '';
+    for (var i = 1; i <= n; i++) h += '<div class="ln' + (bps.has(i) ? ' bp-on' : '') + '" data-n="' + i + '"><i class="dot"></i><span>' + i + '</span></div>';
+    gutter.innerHTML = '<div class="ln-inner">' + h + '</div>';
+    curRow = null;
+    markCurrentRow();
+    gutter.scrollTop = ta.scrollTop;
+  }
+  function markCurrentRow() {
+    if (curRow) curRow.classList.remove('cur');
+    curRow = curLine > 0 ? gutter.querySelector('[data-n="' + curLine + '"]') : null;
+    if (curRow) curRow.classList.add('cur');
+  }
+  function placeHl() {
+    if (curLine < 1) { hl.hidden = true; return; }
+    hl.hidden = false;
+    hl.className = 'hl' + (hlErr ? ' err' : '');
+    hl.style.transform = 'translateY(' + (PAD + (curLine - 1) * LH - ta.scrollTop) + 'px)';
+  }
+  function showLine(n, isErr) {
+    curLine = n; hlErr = !!isErr;
+    markCurrentRow();
+    if (n > 0) {
+      var top = (n - 1) * LH;
+      if (top < ta.scrollTop + LH || top > ta.scrollTop + ta.clientHeight - 3 * LH) {
+        ta.scrollTop = Math.max(0, top - ta.clientHeight / 3);
+      }
+    }
+    gutter.scrollTop = ta.scrollTop;
+    placeHl();
+  }
+  function insertText(t) {
+    ta.focus();
+    var ok = false;
+    try { ok = document.execCommand('insertText', false, t); } catch (e) { ok = false; }
+    if (!ok) {
+      ta.setRangeText(t, ta.selectionStart, ta.selectionEnd, 'end');
+      ta.dispatchEvent(new Event('input'));
+    }
+  }
+  ta.addEventListener('scroll', function () { gutter.scrollTop = ta.scrollTop; placeHl(); });
+  ta.addEventListener('input', function () {
+    buildGutter(false);
+    if (steps.length || runErr) { clearTrace(); setStatus(ready ? 'ready' : 'loading', ready ? 'Code changed. Press Trace.' : 'Loading Python'); }
+  });
+  ta.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); runTrace(); return; }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        var s = ta.selectionStart, ls = ta.value.lastIndexOf('\n', s - 1) + 1;
+        var m = /^ {1,4}/.exec(ta.value.slice(ls));
+        if (m) {
+          ta.setRangeText('', ls, ls + m[0].length, 'preserve');
+          var p = Math.max(ls, s - m[0].length);
+          ta.setSelectionRange(p, p);
+          ta.dispatchEvent(new Event('input'));
+        }
+      } else {
+        insertText('    ');
+      }
+    } else if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      var s2 = ta.selectionStart, ls2 = ta.value.lastIndexOf('\n', s2 - 1) + 1;
+      var line = ta.value.slice(ls2, s2);
+      var ind = /^\s*/.exec(line)[0] + (/:\s*$/.test(line) ? '    ' : '');
+      e.preventDefault();
+      insertText('\n' + ind);
+    }
+  });
+  gutter.addEventListener('click', function (e) {
+    var row = e.target.closest('.ln');
+    if (!row) return;
+    var n = +row.getAttribute('data-n');
+    if (bps.has(n)) bps.delete(n); else bps.add(n);
+    row.classList.toggle('bp-on', bps.has(n));
+  });
+  stdinEl.addEventListener('input', function () {
+    if (steps.length) { clearTrace(); setStatus(ready ? 'ready' : 'loading', ready ? 'Input changed. Press Trace.' : 'Loading Python'); }
+  });
+
+  /* ---------- rendering ---------- */
+  function fnLabel(s) {
+    var n = s.st[0][0];
+    return n === '<module>' ? 'main program' : n + '()';
+  }
+
+  function renderVars(host, list, prev) {
+    host.textContent = '';
+    if (!list.length) { host.appendChild(el('p', 'empty', 'Nothing assigned yet.')); return; }
+    var pm = prev ? new Map(prev.map(function (r) { return [r[0], r[1]]; })) : null;
+    list.forEach(function (r) {
+      var cls = 'var', tag = '';
+      if (pm) {
+        if (!pm.has(r[0])) { cls += ' new'; tag = 'new'; }
+        else if (pm.get(r[0]) !== r[1]) { cls += ' chg'; tag = 'changed'; }
+      }
+      var row = el('div', cls);
+      row.appendChild(el('span', 'vn', r[0]));
+      row.appendChild(el('span', 'vv', r[1]));
+      var meta = el('span', 'vm');
+      if (tag) meta.appendChild(el('span', 'tag', tag));
+      if (r[2]) meta.appendChild(el('span', '', r[2]));
+      row.appendChild(meta);
+      host.appendChild(row);
+    });
+  }
+
+  function renderOutput(upTo, atEnd) {
+    var out = $('out');
+    out.textContent = '';
+    var text = atEnd ? fullOut : fullOut.slice(0, upTo);
+    if (text) out.appendChild(document.createTextNode(text));
+    else out.appendChild(el('span', 'dim', 'No output yet.'));
+    if (atEnd && runErr) out.appendChild(el('span', 'errtext', runErr.text));
+    if (atEnd && truncated) out.appendChild(el('span', 'note', 'The trace stopped after ' + MAX_STEPS.toLocaleString() + ' steps. A loop may be running without end.'));
+    out.scrollTop = out.scrollHeight;
+  }
+
+  function setIdleText(msg) {
+    if (steps.length) return;
+    $('chip').textContent = 'Waiting';
+    $('where').textContent = '';
+    $('src').textContent = '';
+    $('src').classList.remove('err');
+    $('what').textContent = msg;
+    $('what').classList.remove('err');
+  }
+
+  function render() {
+    var n = steps.length;
+    updateControls();
+    if (!n) {
+      // No trace: either idle, or a syntax error that stopped the run before the first line.
+      var vars = $('vars'); vars.textContent = ''; vars.appendChild(el('p', 'empty', 'Variables appear here as you step.'));
+      $('globalsCard').hidden = true;
+      $('stack').textContent = '';
+      $('scopeName').textContent = '';
+      $('count').textContent = 'No run yet';
+      scrub.max = 0; scrub.value = 0;
+      if (runErr) {
+        showLine(runErr.line, true);
+        $('chip').textContent = 'Error';
+        $('where').textContent = 'line ' + runErr.line;
+        $('src').textContent = tracedLines[runErr.line - 1] || '';
+        $('src').classList.add('err');
+        $('what').textContent = runErr.text;
+        $('what').classList.add('err');
+        renderOutput(0, true);
+      } else {
+        showLine(0, false);
+        $('src').classList.remove('err');
+        $('what').classList.remove('err');
+        if (ready) setIdleText('Press Trace to run your code and record every step.');
+        $('out').textContent = '';
+        $('out').appendChild(el('span', 'dim', 'No output yet.'));
+      }
+      return;
+    }
+
+    var s = steps[idx];
+    var isErrStep = s.e === 'e';
+    showLine(s.l, isErrStep);
+
+    scrub.max = n - 1; scrub.value = idx;
+    $('count').textContent = 'Step ' + (idx + 1) + ' of ' + n;
+
+    $('chip').textContent = s.e === 'l' ? 'About to run' : (s.e === 'r' ? 'Returning' : 'Exception');
+    $('where').textContent = 'line ' + s.l + ' in ' + fnLabel(s);
+    $('src').textContent = tracedLines[s.l - 1] !== undefined ? tracedLines[s.l - 1] : '';
+    $('src').classList.toggle('err', isErrStep);
+    var what;
+    if (s.e === 'l') what = 'This line has not run yet. Variables show their values just before it runs.';
+    else if (s.e === 'r') what = s.d === 0 ? 'The program has finished.' : fnLabel(s) + ' is about to return ' + s.r + '.';
+    else what = s.x;
+    $('what').textContent = what;
+    $('what').classList.toggle('err', isErrStep);
+
+    $('scopeName').textContent = fnLabel(s);
+    var prev = prevSame[idx] >= 0 ? steps[prevSame[idx]].v : null;
+    renderVars($('vars'), s.v, prev);
+
+    var showG = !!s.g;
+    $('globalsCard').hidden = !showG;
+    if (showG) renderVars($('globals'), s.g, idx > 0 ? gAt[idx - 1] : null);
+
+    var st = $('stack');
+    st.textContent = '';
+    s.st.forEach(function (f, i) {
+      var li = el('li', i === 0 ? 'top' : '');
+      li.appendChild(el('span', '', f[0] === '<module>' ? 'main program' : (f[0].charAt(0) === '.' ? f[0] : f[0] + '()')));
+      if (f[1]) li.appendChild(el('span', 'ln-no', 'line ' + f[1]));
+      st.appendChild(li);
+    });
+
+    var atEnd = idx === n - 1;
+    renderOutput(s.o, atEnd);
+  }
+
+  function updateControls() {
+    var has = steps.length > 0 && !running;
+    var n = steps.length;
+    runBtn.textContent = running ? 'Stop' : 'Trace';
+    runBtn.classList.toggle('stop', running);
+    runBtn.classList.toggle('primary', !running);
+    runBtn.disabled = !running && !ready;
+    restartBtn.disabled = !has || idx <= 0;
+    backBtn.disabled = !has || idx <= 0;
+    stepBtn.disabled = overBtn.disabled = contBtn.disabled = !has || idx >= n - 1;
+    outBtn.disabled = !has || idx >= n - 1 || steps[idx].d === 0;
+    scrub.disabled = !has || n < 2;
+  }
+
+  /* ---------- wiring ---------- */
+  runBtn.addEventListener('click', function () {
+    if (running) stopRun('Stopped.'); else runTrace();
+  });
+  restartBtn.addEventListener('click', function () { go(0); });
+  backBtn.addEventListener('click', stepBack);
+  stepBtn.addEventListener('click', stepInto);
+  overBtn.addEventListener('click', stepOver);
+  outBtn.addEventListener('click', stepOut);
+  contBtn.addEventListener('click', cont);
+  scrub.addEventListener('input', function () { go(+scrub.value); });
+
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.tagName === 'SELECT')) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || !canNav()) return;
+    var k = e.key;
+    if (k === 'ArrowRight') { e.preventDefault(); stepInto(); }
+    else if (k === 'ArrowLeft') { e.preventDefault(); stepBack(); }
+    else if (k === 'ArrowDown') { e.preventDefault(); stepOver(); }
+    else if (k === 'ArrowUp') { e.preventDefault(); stepOut(); }
+    else if (k === 'c' || k === 'C') { e.preventDefault(); cont(); }
+  });
+
+  var sel = $('examples');
+  EXAMPLES.forEach(function (ex, i) {
+    var o = document.createElement('option');
+    o.value = String(i); o.textContent = ex.name;
+    sel.appendChild(o);
+  });
+  function loadExample(i) {
+    var ex = EXAMPLES[i];
+    ta.value = ex.code;
+    stdinEl.value = ex.stdin;
+    $('stdinBox').open = !!ex.stdin;
+    bps.clear();
+    ta.scrollTop = 0;
+    clearTrace();
+    buildGutter(true);
+    if (ready) runTrace();
+  }
+  sel.addEventListener('change', function () { loadExample(+sel.value); });
+
+  ta.value = EXAMPLES[0].code;
+  stdinEl.value = EXAMPLES[0].stdin;
+  buildGutter(true);
+  render();
+  setIdleText('Loading the Python runtime. This takes a few seconds the first time.');
+  startWorker();
+})();
+</script>
+
+</body></html>
